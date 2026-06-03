@@ -65,43 +65,121 @@ npx tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify
 python3 setup_db.py
 ```
 
-### 5. Run the app (development)
+### 5. Deploy with Apache2 + mod_wsgi
 
 ```bash
-python3 app.py
+sudo apt install apache2 libapache2-mod-wsgi-py3 openssl -y
 ```
 
-Access at `http://<ubuntu-ip>:5000`
-
-### 6. Run with Gunicorn (production-style for lab)
+#### 5a. Enable required Apache modules
 
 ```bash
-pip3 install gunicorn
-gunicorn -w 2 -b 0.0.0.0:5000 app:app
+sudo a2enmod wsgi ssl rewrite headers
+sudo systemctl restart apache2
 ```
 
-### 7. (Optional) Run as a systemd service
+#### 5b. Set permissions
 
-```ini
-# /etc/systemd/system/securebank.service
-[Unit]
-Description=SecureBank Flask App
-After=network.target
+```bash
+sudo chown -R www-data:www-data /var/www/bank
+sudo chmod -R 755 /var/www/bank
+```
 
-[Service]
-WorkingDirectory=/var/www/bank
-ExecStart=/usr/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
-Restart=always
-User=www-data
+#### 5c. Create Apache virtual host (HTTP)
 
-[Install]
-WantedBy=multi-user.target
+```apache
+# /etc/apache2/sites-available/securebank.conf
+<VirtualHost *:80>
+    ServerName 192.168.100.10
+    DocumentRoot /var/www/bank
+
+    WSGIDaemonProcess bank python-path=/var/www/bank
+    WSGIScriptAlias / /var/www/bank/wsgi.py
+
+    <Directory /var/www/bank>
+        Require all granted
+    </Directory>
+
+    Alias /static /var/www/bank/static
+    <Directory /var/www/bank/static>
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/securebank_error.log
+    CustomLog ${APACHE_LOG_DIR}/securebank_access.log combined
+</VirtualHost>
 ```
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now securebank
+sudo a2ensite securebank.conf
+sudo systemctl reload apache2
 ```
+
+#### 5d. Generate self-signed CA certificate for HTTPS (Lab 5)
+
+```bash
+# Create CA key and certificate
+openssl genrsa -out /etc/ssl/private/securebank-ca-key.pem 2048
+openssl req -x509 -new -nodes -key /etc/ssl/private/securebank-ca-key.pem \
+  -sha256 -days 365 -out /etc/ssl/certs/securebank-ca.pem \
+  -subj "/C=US/ST=State/L=City/O=SecureBank/CN=SecureBankCA"
+
+# Create server key and CSR
+openssl genrsa -out /etc/ssl/private/securebank-key.pem 2048
+openssl req -new -key /etc/ssl/private/securebank-key.pem \
+  -out /etc/ssl/certs/securebank.csr \
+  -subj "/C=US/ST=State/L=City/O=SecureBank/CN=192.168.100.10"
+
+# Sign server cert with CA
+openssl x509 -req -in /etc/ssl/certs/securebank.csr \
+  -CA /etc/ssl/certs/securebank-ca.pem \
+  -CAkey /etc/ssl/private/securebank-ca-key.pem \
+  -CAcreateserial -out /etc/ssl/certs/securebank-cert.pem \
+  -days 365 -sha256
+```
+
+#### 5e. Create Apache virtual host (HTTPS)
+
+```apache
+# /etc/apache2/sites-available/securebank-ssl.conf
+<VirtualHost *:443>
+    ServerName 192.168.100.10
+    DocumentRoot /var/www/bank
+
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/certs/securebank-cert.pem
+    SSLCertificateKeyFile /etc/ssl/private/securebank-key.pem
+    SSLCertificateChainFile /etc/ssl/certs/securebank-ca.pem
+
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    WSGIDaemonProcess bank-ssl python-path=/var/www/bank
+    WSGIScriptAlias / /var/www/bank/wsgi.py
+
+    <Directory /var/www/bank>
+        Require all granted
+    </Directory>
+
+    Alias /static /var/www/bank/static
+    <Directory /var/www/bank/static>
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/securebank_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/securebank_ssl_access.log combined
+</VirtualHost>
+```
+
+```bash
+sudo a2ensite securebank-ssl.conf
+sudo systemctl reload apache2
+```
+
+Access at `http://192.168.100.10` or `https://192.168.100.10`
+
+### 6. Install the CA certificate on Windows client (Lab 5)
+
+On the Windows host, import `/etc/ssl/certs/securebank-ca.pem` into **Trusted Root Certification Authorities** so the browser trusts the self-signed HTTPS cert.
 
 ## Seed Users
 
