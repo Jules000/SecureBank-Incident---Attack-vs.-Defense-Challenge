@@ -1,0 +1,11 @@
+{
+  "name": "securebank",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./static/css/input.css -o ./static/css/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

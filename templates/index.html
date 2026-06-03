@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SecureBank | Banking Reimagined for Startups</title>
+<link href="/static/css/tailwind.css" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hero-gradient {
+            background: radial-gradient(circle at top right, rgba(145, 240, 237, 0.15), transparent 40%),
+                        radial-gradient(circle at bottom left, rgba(26, 54, 93, 0.05), transparent 40%);
+        }
+        .premium-shadow {
+            box-shadow: 0 20px 40px -15px rgba(26, 54, 93, 0.06);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased">
+<!-- Navigation Bar -->
+<nav class="fixed top-0 left-0 w-full z-50 bg-surface-container-lowest shadow-sm h-20 max-w-container-max mx-auto flex justify-between items-center px-margin-desktop">
+<div class="flex items-center gap-12">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">SecureBank</span>
+<div class="hidden md:flex gap-8">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors duration-200 cursor-pointer" href="#features">Features</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors duration-200 cursor-pointer" href="#about">About</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<a class="px-6 py-2 bg-primary text-on-primary font-label-md text-label-md rounded transition-all active:opacity-80 hover:bg-primary-container" href="/login">
+                Online Banking
+            </a>
+</div>
+</nav>
+<main class="pt-20">
+<!-- Hero Section -->
+<section class="hero-gradient min-h-[819px] flex flex-col justify-center items-center text-center px-margin-mobile md:px-margin-desktop py-stack-lg">
+<div class="max-w-4xl mx-auto">
+<span class="inline-block py-1 px-3 bg-secondary-container text-on-secondary-container font-label-sm text-label-sm rounded-full mb-stack-sm">
+                    The New Standard in Business Banking
+                </span>
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-primary mb-stack-md leading-tight">
+                    Banking reimagined <br class="hidden md:block"/> for startups
+                </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-stack-lg max-w-2xl mx-auto">
+                    Modern tools for the next generation of business. Secure your capital with institutional-grade technology and fluid digital experiences.
+                </p>
+<div class="flex flex-col md:flex-row gap-gutter justify-center">
+<button class="px-8 py-4 bg-primary text-on-primary font-label-md text-label-md rounded flex items-center justify-center gap-2 hover:bg-primary-container transition-all active:scale-95">
+                        Open Account
+                        <span class="material-symbols-outlined text-base">arrow_forward</span>
+</button>
+<button class="px-8 py-4 border-2 border-secondary text-secondary font-label-md text-label-md rounded hover:bg-secondary-fixed transition-all active:scale-95">
+                        Schedule a Demo
+                    </button>
+</div>
+</div>
+<!-- Hero Image / Visual Element -->
+<div class="mt-stack-lg w-full max-w-5xl mx-auto rounded-xl overflow-hidden premium-shadow border border-surface-variant">
+<img alt="Financial Dashboard" class="w-full h-auto" src="/static/images/hero-dashboard.png"/>
+</div>
+</section>
+<!-- Features Section -->
+<section class="py-stack-lg px-margin-mobile md:px-margin-desktop bg-surface-container-lowest" id="features">
+<div class="max-w-container-max mx-auto">
+<div class="mb-stack-lg text-center md:text-left">
+<h2 class="font-headline-md text-headline-md text-primary mb-stack-xs">Engineered for Velocity</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-xl">Every feature is designed to eliminate friction in your financial operations.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Feature Card 1 -->
+<div class="group bg-surface p-stack-md rounded-lg border border-surface-variant hover:border-secondary transition-all premium-shadow">
+<div class="w-12 h-12 bg-secondary-container rounded flex items-center justify-center mb-stack-md text-secondary">
+<span class="material-symbols-outlined text-3xl">savings</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-stack-sm">High-Yield Savings</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            Put your idle cash to work with market-leading rates. No hidden fees, no minimum balance requirements.
+                        </p>
+</div>
+<!-- Feature Card 2 -->
+<div class="group bg-surface p-stack-md rounded-lg border border-surface-variant hover:border-secondary transition-all premium-shadow">
+<div class="w-12 h-12 bg-secondary-container rounded flex items-center justify-center mb-stack-md text-secondary">
+<span class="material-symbols-outlined text-3xl">verified_user</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-stack-sm">Next-Gen Fraud Detection</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            AI-powered security that learns your patterns to proactively block unauthorized transactions before they happen.
+                        </p>
+</div>
+<!-- Feature Card 3 -->
+<div class="group bg-surface p-stack-md rounded-lg border border-surface-variant hover:border-secondary transition-all premium-shadow">
+<div class="w-12 h-12 bg-secondary-container rounded flex items-center justify-center mb-stack-md text-secondary">
+<span class="material-symbols-outlined text-3xl">electric_bolt</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-stack-sm">Instant Wiring</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            Move capital globally at lightning speed. Send and receive international wires in minutes, not days.
+                        </p>
+</div>
+</div>
+</div>
+</section>
+<!-- Bento Grid Stats Section -->
+<section class="py-stack-lg px-margin-mobile md:px-margin-desktop bg-surface" id="about">
+<div class="max-w-container-max mx-auto grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="md:col-span-2 bg-primary-container p-stack-lg rounded-xl flex flex-col justify-end min-h-[300px]">
+<h4 class="font-display-lg-mobile text-display-lg-mobile text-on-primary mb-stack-sm">12k+</h4>
+<p class="font-body-md text-body-md text-on-primary-container">Startups trust SecureBank for their global operations.</p>
+</div>
+<div class="bg-surface-container-high p-stack-lg rounded-xl">
+<span class="material-symbols-outlined text-secondary text-4xl mb-stack-sm">public</span>
+<h4 class="font-headline-sm text-headline-sm text-primary">Global</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Multi-currency support</p>
+</div>
+<div class="bg-surface-container p-stack-lg rounded-xl">
+<span class="material-symbols-outlined text-secondary text-4xl mb-stack-sm">security</span>
+<h4 class="font-headline-sm text-headline-sm text-primary">SECURE</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">SOC2 Type II Certified</p>
+</div>
+<div class="md:col-span-4 bg-surface-container-low border border-surface-variant rounded-xl overflow-hidden flex flex-col md:flex-row">
+<div class="md:w-1/2 p-stack-lg flex flex-col justify-center">
+<h2 class="font-headline-md text-headline-md text-primary mb-stack-sm">Built for the future of finance</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md">
+                            We've eliminated the legacy baggage of traditional banking to build a platform that moves as fast as your business.
+                        </p>
+<ul class="space-y-4">
+<li class="flex items-center gap-3 font-label-md text-label-md text-primary">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                100% Digital account opening
+                            </li>
+<li class="flex items-center gap-3 font-label-md text-label-md text-primary">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                API-first banking architecture
+                            </li>
+<li class="flex items-center gap-3 font-label-md text-label-md text-primary">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Dedicated support for founders
+                            </li>
+</ul>
+</div>
+<div class="md:w-1/2 relative h-64 md:h-auto">
+<img alt="Founder Collaboration" class="absolute inset-0 w-full h-full object-cover" src="/static/images/founder-collab.png"/>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-stack-lg px-margin-mobile text-center">
+<div class="max-w-2xl mx-auto bg-surface-container-highest p-stack-lg rounded-xl border border-surface-variant">
+<h2 class="font-headline-md text-headline-md text-primary mb-stack-sm">Ready to scale?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md">Join thousands of companies growing faster with SecureBank.</p>
+<button class="px-12 py-4 bg-primary text-on-primary font-label-md text-label-md rounded hover:bg-primary-container transition-all active:scale-95 shadow-lg">
+                    Get Started Now
+                </button>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-stack-lg px-margin-desktop flex flex-col md:flex-row justify-between items-center bg-primary text-on-primary">
+<div class="flex flex-col items-center md:items-start mb-stack-md md:mb-0">
+<span class="font-headline-sm text-headline-sm text-on-primary mb-2">SecureBank</span>
+<p class="font-label-sm text-label-sm opacity-80">© 2024 SecureBank. All rights reserved.</p>
+</div>
+<div class="flex flex-col md:flex-row items-center gap-8">
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity cursor-pointer" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity cursor-pointer" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity cursor-pointer" href="#">Contact Support</a>
+</div>
+</footer>
+<script>
+        const observerOptions = {
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('opacity-100', 'translate-y-0');
+                    entry.target.classList.remove('opacity-0', 'translate-y-8');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.group, .bg-surface-container-high, .bg-surface-container').forEach(el => {
+            el.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-8');
+            observer.observe(el);
+        });
+
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 20) {
+                nav.classList.add('bg-white/90', 'backdrop-blur-md');
+            } else {
+                nav.classList.remove('bg-white/90', 'backdrop-blur-md');
+            }
+        });
+    </script>
+</body></html>

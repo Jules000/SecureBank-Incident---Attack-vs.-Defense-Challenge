@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+database/
+static/css/tailwind.css
+.env
+*.egg-info/
+dist/
+build/

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard | SecureBank</title>
+<link href="/static/css/tailwind.css" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc;
+        }
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .sidebar-active {
+            border-left-width: 4px;
+        }
+        .elevation-soft {
+            shadow-color: rgba(26, 54, 93, 0.05);
+            box-shadow: 0 10px 30px -5px rgba(26, 54, 93, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background">
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-desktop h-20 max-w-container-max mx-auto bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-stack-md">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">SecureBank</span>
+</div>
+<div class="hidden md:flex items-center gap-gutter">
+<nav class="flex gap-stack-md">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors duration-200 cursor-pointer" href="#">Features</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors duration-200 cursor-pointer" href="#">About</a>
+</nav>
+<div class="h-8 w-[1px] bg-outline-variant"></div>
+<div class="flex items-center gap-stack-sm">
+<span class="font-label-md text-label-md text-on-surface">Welcome, {{ user_name }}</span>
+<img alt="{{ user_name }}" class="w-10 h-10 rounded-full object-cover border-2 border-surface-variant" src="{{ profile_image }}"/>
+<a class="font-label-md text-label-md text-outline hover:text-error transition-colors flex items-center gap-1 ml-2" href="/logout">
+<span class="material-symbols-outlined text-[18px]" data-icon="logout">logout</span>
+</a>
+</div>
+</div>
+<button class="bg-primary text-on-primary px-stack-md py-2 font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity">
+            Online Banking
+        </button>
+</header>
+<div class="flex pt-20 min-h-screen">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-low flex flex-col py-stack-md px-4 hidden md:flex z-40 pt-24">
+<div class="mb-stack-lg px-4 flex items-center gap-stack-sm">
+<img alt="{{ user_name }}" class="w-12 h-12 rounded-full object-cover border-2 border-surface-variant" src="{{ profile_image }}"/>
+<div>
+<p class="font-headline-sm text-headline-sm font-bold text-primary">{{ user_name }}</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-80">Premium Member</p>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-stack-sm py-3 px-4 font-label-md text-label-md text-primary font-bold border-l-4 border-primary bg-surface-container-high cursor-pointer transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                    Dashboard
+                </a>
+<a class="flex items-center gap-stack-sm py-3 px-4 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container cursor-pointer transition-all active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+                    Accounts
+                </a>
+<a class="flex items-center gap-stack-sm py-3 px-4 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container cursor-pointer transition-all active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+                    Transactions
+                </a>
+<a class="flex items-center gap-stack-sm py-3 px-4 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container cursor-pointer transition-all active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+                    Security
+                </a>
+<a class="flex items-center gap-stack-sm py-3 px-4 font-label-md text-label-md text-error hover:bg-error-container cursor-pointer transition-all active:scale-95 mt-4" href="/logout">
+<span class="material-symbols-outlined text-[18px]" data-icon="logout">logout</span>
+                    Logout
+                </a>
+</nav>
+<button class="mt-auto mx-4 bg-secondary text-on-secondary py-3 px-4 rounded-lg font-label-md text-label-md text-center hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Quick Transfer
+            </button>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 p-margin-mobile md:p-margin-desktop bg-background max-w-container-max mx-auto w-full">
+<!-- Bento Grid Section -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Main Balance Card (Hero) -->
+<div class="md:col-span-8 bg-surface-container-lowest p-stack-lg rounded-xl elevation-soft border border-outline-variant/10 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-secondary-container/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+<div class="relative z-10">
+<div class="flex justify-between items-start mb-stack-md">
+<div>
+<h2 class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase mb-1">Total Account Balance</h2>
+<p class="font-display-lg text-display-lg text-primary tracking-tighter">{{ balance }}</p>
+</div>
+<div class="flex items-center gap-1 bg-secondary-container px-2 py-1 rounded text-on-secondary-container">
+<span class="material-symbols-outlined text-sm" data-icon="trending_up">trending_up</span>
+<span class="font-label-sm text-label-sm">+2.4%</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-stack-md mt-stack-lg border-t border-outline-variant pt-stack-md">
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Savings Account</p>
+<p class="font-title-lg text-title-lg text-primary">$42,850.00</p>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Investment Portfolio</p>
+<p class="font-title-lg text-title-lg text-primary">$81,420.50</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Action Card -->
+<div class="md:col-span-4 grid grid-rows-2 gap-gutter">
+<div class="bg-primary text-on-primary p-stack-md rounded-xl elevation-soft flex flex-col justify-between group cursor-pointer hover:bg-primary-container transition-colors">
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-secondary-fixed" data-icon="credit_card">credit_card</span>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm">Virtual Card</p>
+<p class="font-label-md text-label-md opacity-70">Manage your active digital assets</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-stack-md rounded-xl elevation-soft border border-outline-variant/10 flex flex-col justify-between">
+<div class="flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+<span class="font-label-sm text-label-sm">System Secure</span>
+</div>
+<div class="mt-stack-sm">
+<p class="font-label-sm text-label-sm text-on-surface-variant">Next Security Audit</p>
+<p class="font-body-md text-body-md text-primary font-bold">14 Days Remaining</p>
+</div>
+</div>
+</div>
+<!-- Transaction History -->
+<div class="md:col-span-12 bg-surface-container-lowest rounded-xl elevation-soft border border-outline-variant/10 overflow-hidden mt-stack-md">
+<div class="px-stack-lg py-stack-md border-b border-outline-variant/20 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-primary">Recent Transactions</h3>
+<button class="text-secondary font-label-md text-label-md hover:underline">View All</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-stack-lg py-3 font-label-sm text-label-sm text-on-surface-variant">Merchant / Description</th>
+<th class="px-stack-lg py-3 font-label-sm text-label-sm text-on-surface-variant">Category</th>
+<th class="px-stack-lg py-3 font-label-sm text-label-sm text-on-surface-variant">Date</th>
+<th class="px-stack-lg py-3 font-label-sm text-label-sm text-on-surface-variant text-right">Amount</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+{% for txn in transactions %}
+{% set icon = category_icons.get(txn.category, 'receipt') %}
+{% set cat_lower = txn.category.lower() %}
+{% if txn.type == 'credit' %}
+{% set icon_bg = 'bg-secondary-container/30' %}
+{% set icon_color = 'text-on-secondary-container' %}
+{% set badge_bg = 'bg-secondary-container/50' %}
+{% set badge_color = 'text-on-secondary-container' %}
+{% set amount_color = 'text-secondary' %}
+{% set amount_prefix = '+' %}
+{% else %}
+{% set icon_bg = 'bg-surface-container-high' %}
+{% set icon_color = 'text-primary' %}
+{% set badge_bg = 'bg-surface-container' %}
+{% set badge_color = 'text-on-surface-variant' %}
+{% set amount_color = 'text-error' %}
+{% set amount_prefix = '-' %}
+{% endif %}
+<tr class="hover:bg-surface-bright transition-colors cursor-pointer">
+<td class="px-stack-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded {{ icon_bg }} flex items-center justify-center {{ icon_color }}">
+<span class="material-symbols-outlined">{{ icon }}</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-primary font-bold">{{ txn.description }}</p>
+</div>
+</div>
+</td>
+<td class="px-stack-lg py-4">
+<span class="px-3 py-1 {{ badge_bg }} rounded-full font-label-sm text-label-sm {{ badge_color }}">{{ txn.category }}</span>
+</td>
+<td class="px-stack-lg py-4 font-body-md text-body-md text-on-surface-variant">{{ txn.date }}</td>
+<td class="px-stack-lg py-4 font-body-md text-body-md {{ amount_color }} text-right font-bold tabular-nums">{{ amount_prefix }}${{ "%.2f"|format(txn.amount) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>
+<!-- Insight Cards -->
+<div class="md:col-span-6 bg-surface-container-lowest p-stack-md rounded-xl elevation-soft border border-outline-variant/10">
+<h4 class="font-title-lg text-title-lg text-primary mb-stack-sm">Monthly Spendings</h4>
+<div class="h-48 w-full bg-surface-container-low rounded-lg flex items-end p-stack-sm gap-2">
+<div class="bg-primary-fixed w-full" style="height: 40%"></div>
+<div class="bg-primary-fixed w-full" style="height: 65%"></div>
+<div class="bg-primary-fixed w-full" style="height: 45%"></div>
+<div class="bg-primary-fixed w-full" style="height: 80%"></div>
+<div class="bg-primary-fixed w-full" style="height: 60%"></div>
+<div class="bg-primary w-full" style="height: 95%"></div>
+</div>
+</div>
+<div class="md:col-span-6 bg-surface-container-lowest p-stack-md rounded-xl elevation-soft border border-outline-variant/10">
+<h4 class="font-title-lg text-title-lg text-primary mb-stack-sm">Market Watch</h4>
+<ul class="space-y-4">
+<li class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface-variant">S&P 500 Index</span>
+<span class="font-label-md text-label-md text-secondary">+0.82%</span>
+</li>
+<li class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface-variant">NASDAQ 100</span>
+<span class="font-label-md text-label-md text-secondary">+1.14%</span>
+</li>
+<li class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-on-surface-variant">USD / EUR</span>
+<span class="font-label-md text-label-md text-error">-0.05%</span>
+</li>
+</ul>
+<div class="mt-stack-md p-stack-sm bg-surface-container-low rounded border border-dashed border-outline-variant text-center">
+<p class="font-label-sm text-label-sm text-on-surface-variant">Personalized advisory coming soon</p>
+</div>
+</div>
+</section>
+</main>
+</div>
+<!-- Mobile BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface-container-lowest shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-50 flex justify-around items-center h-16 px-4">
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="text-[10px] font-bold">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="text-[10px]">Accounts</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="text-[10px]">History</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px]">Settings</span>
+</button>
+</nav>
+<!-- Footer -->
+<footer class="w-full py-stack-lg px-margin-desktop flex flex-col md:flex-row justify-between items-center bg-primary text-on-primary">
+<div class="mb-stack-md md:mb-0">
+<span class="font-headline-sm text-headline-sm text-on-primary font-bold">SecureBank</span>
+<p class="font-label-sm text-label-sm opacity-60 mt-2">The digital vault for your future.</p>
+</div>
+<div class="flex flex-col md:flex-row gap-stack-md items-center">
+<div class="flex gap-stack-md">
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-primary-container opacity-80 hover:opacity-100 transition-opacity" href="#">Contact Support</a>
+</div>
+<p class="font-label-sm text-label-sm text-on-primary-container opacity-50">© 2024 SecureBank. All rights reserved.</p>
+</div>
+</footer>
+<script>
+        const balanceCard = document.querySelector('.bg-surface-container-lowest.md\\:col-span-8');
+        if (balanceCard) {
+            balanceCard.addEventListener('mousemove', (e) => {
+                const { left, top, width, height } = balanceCard.getBoundingClientRect();
+                const x = (e.clientX - left) / width;
+                const y = (e.clientY - top) / height;
+                balanceCard.style.transform = `perspective(1000px) rotateX(${(y - 0.5) * 2}deg) rotateY(${(x - 0.5) * -2}deg)`;
+            });
+            balanceCard.addEventListener('mouseleave', () => {
+                balanceCard.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)';
+            });
+        }
+    </script>
+</body></html>
