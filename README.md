@@ -148,7 +148,7 @@ sudo apt install -y git python3 python3-pip python3-venv \
 ```bash
 # Clone from your GitHub repository
 cd /var/www
-sudo git clone https://github.com/YOUR_TEAM/securebank-lab.git bank
+sudo git clone https://github.com/Jules000/SecureBank-Incident---Attack-vs.-Defense-Challenge.git bank
 sudo chown -R www-data:www-data /var/www/bank
 cd /var/www/bank
 
@@ -161,6 +161,7 @@ sudo npx tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify
 
 # Initialize the database
 sudo python3 setup_db.py
+# Database will be created at: /var/www/bank/database/db.sqlite
 ```
 
 #### 3.1.5 Configure Apache2 + mod_wsgi
