@@ -1,0 +1,22 @@
+    1  hostnamectl
+    2  uname -r
+    3  cat /etc/os-release
+    4  df -h /
+    5  clear
+    6  whoami
+    7  id
+    8  pwd
+    9  echo "$SHELL"
+   10  clear
+   11  date
+   12  echo "Hello from $(hostname)"
+   13  clear
+   14  ls ~
+   15  echo $?
+   16  ls ~/this_file_doesnt_exist.txt
+   17  echo $?
+   18  clear
+   19  history
+   20  whoami
+   21  clear
+   22  history | tail -n 25 > ~/week1_command_history.txt
